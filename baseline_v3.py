@@ -4,8 +4,8 @@ MAX_ROUNDS = 1000
 EARLY_STOP = 50
 OPT_ROUNDS = 906
 
-FULL_OUTFILE = 'sub_lgbm_r_to_python_nocv.csv'
-VALID_OUTFILE = 'sub_lgbm_r_to_python_withcv.csv'
+FULL_OUTFILE = 'lgb_parallel_validation.csv'
+VALID_OUTFILE = 'lgb_parallel_validation.csv'
 
 import pandas as pd
 import time
@@ -13,7 +13,7 @@ import numpy as np
 import lightgbm as lgb
 import gc
  
-path = '../input/'
+path = '/usr/talkingdata/'
 
 print('load training data...')
 train_df = pd.read_pickle(path + 'training.pkl.gz', 'gzip')
@@ -259,7 +259,7 @@ dtypes = {
         
 test_cols = ['ip','app','device','os', 'channel', 'click_time', 'click_id'] 
 
-test_df = pd.read_csv(path + "talkingdata-adtracking-fraud-detection/test.csv", dtype=dtypes, usecols=test_cols)
+test_df = pd.read_csv(path + "test.csv", dtype=dtypes, usecols=test_cols)
 
 test_df = prep_data( test_df )
 gc.collect()
