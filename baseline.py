@@ -1,6 +1,23 @@
+# Version 5 of this kernel is a Python version of Pranav Pandya's R LightGBM:
+#    https://www.kaggle.com/pranav84/single-lightgbm-in-r-with-75-mln-rows-lb-0-9690
 
+# Version 6 increases MAX_ROUNDS to get early stopping
+# Version 7 runs without validation based on the result of version 6
+# Version 9 (still trying to run full training)
+#           gets rid of AUC evals, to maybe speed it up
+# Version 10 runs validation with shuffle=False
+#            (since there is a relevant time element
+#             which will leak in shuffled validation)
+# Version 11 runs without validation based on result of version 11
+# Version 12 adds 'day' restriction to all aggregations
+#            (to make train and test sets more comparable)
+# Version 13 attempts to expand the data back by 25 million records
+# Version 14 runs without validation based on result of version 13
+# Version 15 even more records
+# Version 16 OK, not quite so many records
+# Version 17 reverts to version 14 (LB=.9694)
 
-VALIDATE = False
+VALIDATE = True
 
 MAX_ROUNDS = 1000
 EARLY_STOP = 50
@@ -15,7 +32,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split 
 import lightgbm as lgb
 
-path = '/usr/talkingdata/'
+path = '../input/'
 
 dtypes = {
         'ip'            : 'uint32',
@@ -29,7 +46,7 @@ dtypes = {
 
 print('load train...')
 train_cols = ['ip','app','device','os', 'channel', 'click_time', 'is_attributed']
-train_df = pd.read_csv(path+"train.csv", skiprows=range(1,84903891), nrows=100000000,dtype=dtypes, usecols=train_cols)
+train_df = pd.read_csv(path+"train.csv", skiprows=range(1,84903891), nrows=100000000,dtype=dtypes, usecols=train_cols, parse_dates=['click_time'])
 
 import gc
 
@@ -49,41 +66,37 @@ def prep_data( df ):
     
     df['hour'] = pd.to_datetime(df.click_time).dt.hour.astype('uint8')
     df['day'] = pd.to_datetime(df.click_time).dt.day.astype('uint8')
-    df['minute'] = pd.to_datetime(df.click_time).dt.minute.astype('uint8') # add minute
-    df['second'] = pd.to_datetime(df.click_time).dt.second.astype('uint8') # add second 
+    #df['minute'] = pd.to_datetime(df.click_time).dt.minute.astype('uint8') # add minute
+    #df['second'] = pd.to_datetime(df.click_time).dt.second.astype('uint8') # add second 
+    
+    print('group by : ip_nextClick')
+    df['ip_nextClick'] = df[['ip', 'click_time']].groupby(['ip']).click_time.transform(lambda x: x.diff().shift(-1)).dt.seconds
+    df['ip_nextClick'] = df['ip_nextClick'].astype('float16')
+    gc.collect()
+    print( df.info() ) 
+    
+    print('group by : ip_app_nextClick')
+    df['ip_app_nextClick'] = df[['ip', 'app', 'click_time']].groupby(['ip', 'app']).click_time.transform(lambda x: x.diff().shift(-1)).dt.seconds
+    df['ip_app_nextClick'] = df['ip_app_nextClick'].astype('float16')
+    gc.collect()
+    print( df.info() ) 
+    
+    print('group by : ip_channel_nextClick')
+    df['ip_channel_nextClick'] = df[['ip', 'channel', 'click_time']].groupby(['ip', 'channel']).click_time.transform(lambda x: x.diff().shift(-1)).dt.seconds
+    df['ip_channel_nextClick'] = df['ip_channel_nextClick'].astype('float16')
+    gc.collect()
+    print( df.info() ) 
+
+    print('group by : ip_os_nextClick')
+    df['ip_os_nextClick'] = df[['ip', 'os', 'click_time']].groupby(['ip', 'os']).click_time.transform(lambda x: x.diff().shift(-1)).dt.seconds
+    df['ip_os_nextClick'] = df['ip_os_nextClick'].astype('float16')
+    gc.collect()
+    print( df.info() ) 
+    
     df.drop(['click_time'], axis=1, inplace=True)
     gc.collect()
     
-    ##############################################################################################################################################
-    ##############################################################################################################################################
-    # Add frequency, which might lead to some overfitting, or at least might take a long time 
-    # Maybe it's a better idea to save the processed data to hdf5
-    
-    # FREQUENCY_COLUMNS = ['ip', 'app', 'device', 'os', 'channel']
-    
-    # # Find frequency of is_attributed for each unique value in column
-    # freqs = {}
-    # for col in FREQUENCY_COLUMNS:
-    #     print(f">> Calculating frequency for: {col}")
-    
-    #     # Get counts, sums and frequency of is_attributed
-    #     freq_df = pd.DataFrame({
-    #         'sums': df.groupby(col)['is_attributed'].sum(),
-    #         'counts': df.groupby(col)['is_attributed'].count()
-    #     })
-    #     freq_df.loc[:, 'freq'] = freq_df.sums / freq_df.counts
-        
-    #     # If we have less than 3 observations, e.g. for an IP, then assume freq of 0
-    #     freq_df.loc[freq_df.counts <= 3, 'freq'] = 0        
-        
-    #     # Add to X_total
-    #     df[col+'_freq'] = df[col].map(freq_df['freq'])
-        
-    # del freq_df
-    # gc.collect()
-        
-    ##############################################################################################################################################
-    ##############################################################################################################################################
+
     
     df['in_test_hh'] = (   3 
                          - 2*df['hour'].isin(  most_freq_hours_in_test_data ) 
@@ -206,7 +219,7 @@ lgb_params = {
 target = 'is_attributed'
 predictors = ['app','device','os', 'channel', 'hour', 'nip_day_test_hh', 'nip_day_hh',
               'nip_hh_os', 'nip_hh_app', 'nip_hh_dev']  #, 'ip_freq', 'app_freq', 'device_freq', 'os_freq', 'channel_freq'] # add minute and second 
-predictors = predictors + ['minute', 'second'] + ['ip_app_count']# + ['ip_app_os_count']
+predictors = predictors + ['minute', 'second'] + ['ip_app_count'] + ['ip_nextClick', 'ip_app_nextClick', 'ip_channel_nextClick', 'ip_os_nextClick']# + ['ip_app_os_count']
 categorical = ['app', 'device', 'os', 'channel', 'hour']
 
 print(train_df.head(5))
@@ -296,6 +309,8 @@ gc.collect()
 
 print('load test...')
 test_cols = ['ip','app','device','os', 'channel', 'click_time', 'click_id'] 
+#test_cols = test_cols + ['minute', 'second'] + ['ip_app_count']
+
 test_df = pd.read_csv(path+"test.csv", dtype=dtypes, usecols=test_cols)
 
 test_df = prep_data( test_df )
