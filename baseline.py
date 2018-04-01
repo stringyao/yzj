@@ -296,7 +296,6 @@ gc.collect()
 
 print('load test...')
 test_cols = ['ip','app','device','os', 'channel', 'click_time', 'click_id'] 
-test_cols = test_cols + ['minute', 'second'] + ['ip_app_count']
 test_df = pd.read_csv(path+"test.csv", dtype=dtypes, usecols=test_cols)
 
 test_df = prep_data( test_df )
