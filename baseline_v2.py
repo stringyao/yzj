@@ -150,7 +150,7 @@ train_df = prep_data( train_df )
 gc.collect()
 
 print('preprocessing validating data...')
-train_df = prep_data( validation_df )
+validation_df = prep_data( validation_df )
 gc.collect()
 
 print("vars and data type: ")
