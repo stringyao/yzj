@@ -4,8 +4,8 @@ MAX_ROUNDS = 1000
 EARLY_STOP = 50
 OPT_ROUNDS = 906
 
-FULL_OUTFILE = 'lgb_parallel_validation.csv'
-VALID_OUTFILE = 'lgb_parallel_validation.csv'
+FULL_OUTFILE = 'lgb_parallel_validation_v4.csv'
+VALID_OUTFILE = 'lgb_parallel_validation_v4.csv'
 
 import pandas as pd
 import time
@@ -35,8 +35,8 @@ def prep_data( df ):
     
     df['hour'] = pd.to_datetime(df.click_time).dt.hour.astype('uint8')
     df['day'] = pd.to_datetime(df.click_time).dt.day.astype('uint8')
-    #df['minute'] = pd.to_datetime(df.click_time).dt.minute.astype('uint8') # add minute
-    #df['second'] = pd.to_datetime(df.click_time).dt.second.astype('uint8') # add second 
+    df['minute'] = pd.to_datetime(df.click_time).dt.minute.astype('uint8') # add minute
+    df['second'] = pd.to_datetime(df.click_time).dt.second.astype('uint8') # add second 
     
     # print('group by : ip_nextClick')
     # df['ip_nextClick'] = df[['ip', 'click_time']].groupby(['ip']).click_time.transform(lambda x: x.diff().shift(-1)).dt.seconds
@@ -129,22 +129,22 @@ def prep_data( df ):
     print( df.info() )
     
     # add new features: # of clicks for each ip-app combination
-    # print('group by: ip_app_channel')
-    # gp = df[['ip','app', 'channel']].groupby(by=['ip', 'app'])[['channel']].count().reset_index().rename(index=str, columns={'channel': 'ip_app_count'})
-    # df = df.merge(gp, on=['ip','app'], how='left')
-    # del gp
-    # df['ip_app_count'] = df['ip_app_count'].astype('uint16')
-    # gc.collect()
-    # print( df.info() )
+    print('group by: ip_app_channel')
+    gp = df[['ip','app', 'channel']].groupby(by=['ip', 'app'])[['channel']].count().reset_index().rename(index=str, columns={'channel': 'ip_app_count'})
+    df = df.merge(gp, on=['ip','app'], how='left')
+    del gp
+    df['ip_app_count'] = df['ip_app_count'].astype('uint16')
+    gc.collect()
+    print( df.info() )
 
     # add new features: # of clicks for each ip-app-os combination
-    # print('group by: ip_app_os')
-    # gp = df[['ip','app', 'os', 'channel']].groupby(by=['ip', 'app', 'os'])[['channel']].count().reset_index().rename(index=str, columns={'channel': 'ip_app_os_count'})
-    # df = df.merge(gp, on=['ip','app', 'os'], how='left')
-    # del gp
-    # df['ip_app_os_count'] = df['ip_app_os_count'].astype('uint16')
-    # gc.collect()
-    # print( df.info() )
+    print('group by: ip_app_os')
+    gp = df[['ip','app', 'os', 'channel']].groupby(by=['ip', 'app', 'os'])[['channel']].count().reset_index().rename(index=str, columns={'channel': 'ip_app_os_count'})
+    df = df.merge(gp, on=['ip','app', 'os'], how='left')
+    del gp
+    df['ip_app_os_count'] = df['ip_app_os_count'].astype('uint16')
+    gc.collect()
+    print( df.info() )
 
     df.drop( ['ip','day'], axis=1, inplace=True )
     gc.collect()
@@ -174,11 +174,11 @@ lgb_params = {
         'objective': 'binary',
         'metric':metrics,
         'learning_rate': 0.1,
-        'num_leaves': 7,  # we should let it be smaller than 2^(max_depth)
-        'max_depth': 4,  # -1 means no limit
+        'num_leaves': 9,  # we should let it be smaller than 2^(max_depth)
+        'max_depth': 5,  # -1 means no limit
         'min_child_samples': 100,  # Minimum number of data need in a child(min_data_in_leaf)
         'max_bin': 100,  # Number of bucketed bin for feature values
-        'subsample': 0.7,  # Subsample ratio of the training instance.
+        'subsample': 0.9,  # Subsample ratio of the training instance.
         'subsample_freq': 1,  # frequence of subsample, <=0 means no enable
         'colsample_bytree': 0.7,  # Subsample ratio of columns when constructing each tree.
         'min_child_weight': 0,  # Minimum sum of instance weight(hessian) needed in a child(leaf)
@@ -192,7 +192,8 @@ lgb_params = {
 target = 'is_attributed'
 predictors = ['app','device','os', 'channel', 'hour', 'nip_day_test_hh', 'nip_day_hh',
               'nip_hh_os', 'nip_hh_app', 'nip_hh_dev']  #, 'ip_freq', 'app_freq', 'device_freq', 'os_freq', 'channel_freq'] # add minute and second 
-#predictors = predictors + ['minute', 'second'] + ['ip_app_count'] + ['ip_nextClick', 'ip_app_nextClick', 'ip_channel_nextClick', 'ip_os_nextClick']# + ['ip_app_os_count']
+predictors = predictors + ['minute', 'second'] + ['ip_app_count', 'ip_app_os_count']
+# + ['ip_nextClick', 'ip_app_nextClick', 'ip_channel_nextClick', 'ip_os_nextClick']# + ['ip_app_os_count']
 categorical = ['app', 'device', 'os', 'channel', 'hour']
 
 
@@ -237,7 +238,7 @@ OPT_ROUNDS = bst.best_iteration
 
 print("\nModel Report")
 print("OPT_ROUNDS : ", OPT_ROUNDS)
-print(metrics+":", evals_results['valid'][metrics][n_estimators-1])
+#print(metrics+":", evals_results['valid'][metn_estimators-1rics][n_estimators-1])
 
 del xgvalid
 del xgtrain
