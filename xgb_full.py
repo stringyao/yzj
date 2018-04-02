@@ -228,7 +228,7 @@ gc.collect()
 
 print('load test...')
 
-outfile = VALID_OUTFILE
+outfile = FULL_OUTFILE
 
 dtypes = {
         'ip'            : 'uint32',
